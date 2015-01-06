@@ -1,0 +1,223 @@
+; Akshai Sarma
+;CSc 210
+;Project 2 Binary to Text Encoder using Base64
+
+assume cs:cseg. ds:cseg, es:cseg
+cseg segment 'code'
+
+org 100h
+
+START: jmp RealStart
+
+;Data Section
+Inname db 130 (?)
+Outname db 130 (?)
+InH db (?)
+OutH db (?)
+IBuff db 300 (?)
+OBuff db 403 (?)
+InBuff db 3 DUP (?)
+OutBuff db 4 DUP (?)
+ByteCount dw (?)
+ErrParse db "Could not parse args. Please check"
+ErrRead db "Could not read from input file."
+ErrWrite db "Could not write to output file."
+ErrMsgInp db "Could not open Input file. Please check."
+ErrMsgOut db "Could not create Output file to write to. Please check."
+EMsgInpLen equ $-ErrMsgInp
+EMsgOutLen equ $-ErrMsgOut
+EMsgParse equ $-ErrParse
+ERead equ $-ErrRead
+EWrite equ $-ErrWrite
+
+RealStart:
+
+;Setting Text Mode
+mov ax, 03h
+int 10h
+
+cld; Clearing Direction Flag
+
+call ParseIOFile
+call Open
+call Create
+
+;Read 300 Bytes chunks - 100 3 Byte chunks
+Read:
+mov ah, 3fh
+mov bx, inh
+mov dx, offset IBuff
+mov cx, 300
+int 21h
+cld
+JC FRError
+or ax, ax
+JZ Done ; Read 0 bytes
+mov ByteCount, ax
+call Encode; Convert the ByteCount number of bytes to text
+mov ah, 40h
+mov bx, OutH
+mov dx, offset OBuff
+mov cx, ByteCount ; byte count updated by Encode: On all cases except last, it should be 4 byte chunks * 70 = 400 Bytes
+int 21h
+cld
+JC FWError
+;Else done with encoding
+Done: 
+jmp Exit
+
+FRError:
+mov cx, ERead
+sub bx, bx
+mov si, offset ErrRead
+L9:
+lodsb
+mov es:[bx], al
+add bx, 2
+Loop L9
+jmp Exit
+
+FWError:
+mov cx, EWrite
+sub bx, bx
+mov si, offset ErrWrite
+L10:
+lodsb
+mov es:[bx], al
+add bx, 2
+Loop L10
+jmp Exit
+
+Exit:
+call Close
+int 20h
+
+;--------------Procedure Section-----------------
+;Procedure ParseIOFile
+ParseIOFile:
+;Input File Name
+mov di, offset Inname
+mov si, 81h
+L1:
+lodsb
+cmp al, ' '
+JZ L1
+cmp al, 9; tab
+JZ L1
+cmp al, 13; return
+JZ Error
+L2: 
+stosb
+lodsb
+cmp al, ' '
+JZ L3
+cmp al, 9
+JZ L3
+cmp al, 13
+JZ error
+jmp L2
+L3:
+sub al, al
+stosb
+
+;Output File Name
+mov di, offset Outname
+L4:
+lodsb
+cmp al, ' '
+JZ L4
+cmp al, 9
+JZ L4
+cmp al, 13
+JZ Error
+L5: 
+stosb
+lodsb
+cmp al, 13
+JZ L6
+jmp L5
+L6:
+sub al, al
+stosb
+jmp Here
+
+Error:
+mov ax, 0b800h
+mov es, ax
+mov cx, EMsgParse
+mov si, offset ErrParse
+L7:
+lodsb
+mov es:[bx], al
+add bx , 2
+Loop L7
+jmp Exit
+
+Here:
+mov ax, 0b800h
+mov es, ax ; don't need ES to point to Cseg anymore, moving to Video Mem
+ret
+
+;Procedure Open
+Open:
+mov ax, 3d00h; open in read mode
+mov dx, offset Inname
+int 21h
+cld
+JC IError
+mov InH, ax
+jmp Here2:
+
+IError:
+mov cx, EMsgInpLen
+sub bx, bx
+mov si, offset ErrMsgInp
+L8:
+lodsb
+mov es:[bx], al
+add bx, 2
+Loop L8
+jmp Exit
+Here2:
+ret
+
+;Procedure Create
+Create:
+mov dx, offset Outname
+mov ah, 3Ch; Create File
+sub cx, cx; Normal mode
+int 21h
+cld
+JC OError
+mov OutH, ax
+jmp Here3:
+OError:
+mov cx, EMsgOutLen
+sub bx, bx
+mov si, offset ErrMsgOut
+L8:
+lodsb
+mov es:[bx], al
+add bx, 2
+Loop L8
+jmp Exit
+Here3:
+ret
+
+;Procedure Close
+Close:
+mov ah, 3Eh
+mov bx, InH
+int 21h
+mov ah, 3Eh
+mov bx, OutH
+int 21h
+ret
+
+;Procedure Encode
+Encode: 
+ret
+
+cseg ends
+end START
+;Test
